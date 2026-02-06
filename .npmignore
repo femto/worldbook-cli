@@ -1,0 +1,7 @@
+*.py
+pyproject.toml
+worldbook_cli/
+dist/
+build/
+*.egg-info/
+__pycache__/

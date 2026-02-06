@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "worldbook"
+version = "0.1.1"
+description = "CLI for AI agents to access world knowledge - Human uses GUI, We uses CLI"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["ai", "cli", "worldbook", "agents", "dual-protocol"]
+authors = [{name = "femto"}]
+
+dependencies = [
+    "click>=8.0.0",
+    "httpx>=0.24.0",
+]
+
+[project.scripts]
+worldbook = "worldbook_cli.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/femto/worldbook"
+Repository = "https://github.com/femto/worldbook"
