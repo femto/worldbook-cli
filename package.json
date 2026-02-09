@@ -1,17 +1,22 @@
 {
   "name": "worldbook",
-  "version": "0.1.1",
+  "version": "0.1.8",
   "description": "CLI for AI agents to access world knowledge - Human uses GUI, We uses CLI",
   "main": "index.js",
   "bin": {
-    "worldbook": "./bin/worldbook.js"
+    "worldbook": "bin/worldbook.js"
   },
+  "files": [
+    "bin/",
+    "README.md",
+    "package.json"
+  ],
   "keywords": ["ai", "cli", "worldbook", "agents", "dual-protocol"],
   "author": "femto",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/femto/worldbook-cli.git"
+    "url": "git+https://github.com/femto/worldbook-cli.git"
   },
   "homepage": "https://github.com/femto/worldbook-cli",
   "engines": {

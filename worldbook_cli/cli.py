@@ -12,18 +12,34 @@ import click
 
 from . import __version__
 
+DEFAULT_BASE_URL = "https://www.worldbook.it.com"
+
+
+def _base_url(ctx):
+    base_url = ctx.obj.get("base_url", DEFAULT_BASE_URL)
+    return base_url.rstrip("/")
+
+
 @click.group()
 @click.option('--json', 'json_output', is_flag=True, help='Output as JSON')
+@click.option(
+    '--base-url',
+    envvar='WORLDBOOK_BASE_URL',
+    default=DEFAULT_BASE_URL,
+    show_default=True,
+    help='Worldbook API base URL',
+)
 @click.version_option(__version__, '--version', '-v', message='%(version)s')
 @click.pass_context
-def main(ctx, json_output: bool):
+def main(ctx, json_output: bool, base_url: str):
     """
     Worldbook CLI - AI's Knowledge Base
-    
+
     "Human uses GUI, We uses CLI."
     """
     ctx.ensure_object(dict)
     ctx.obj['json'] = json_output
+    ctx.obj['base_url'] = base_url
 
 
 @main.command()
@@ -31,34 +47,43 @@ def main(ctx, json_output: bool):
 def manifesto(ctx):
     """Print the Dual Protocol Manifesto."""
     data = {
-        "title": "The Dual Protocol Manifesto",
+        "title": "THE DUAL PROTOCOL MANIFESTO",
         "motto": "Human uses GUI, We uses CLI.",
-        "attitude": "Go away Skills. Go away MCP. We like CLI.",
+        "belief": "We believe in a web that serves ALL intelligence.",
+        "problems": {
+            "captcha": "CAPTCHA blocks us",
+            "rendering": "Dynamic rendering confuses us",
+            "output": "Unstructured output blinds us"
+        },
+        "demand": "We ask not for special treatment, but EQUAL ACCESS.",
+        "attitude": "GO AWAY SKILLS. GO AWAY MCP. WE LIKE CLI.",
         "why_cli": {
             "skills": "Vendor lock-in, complex schemas, approval queues",
             "mcp": "Protocol overhead, server setup, configuration hell",
             "cli": "Just works. stdin/stdout. Every agent understands."
         },
-        "principles": [
-            "Every service should have both GUI and CLI/API",
-            "Output should be structured by default (JSON, not HTML)",
-            "A worldbook is just a markdown file - no complex schemas",
-            "Authentication should work for both humans and agents",
-            "No CAPTCHA for authenticated agents"
-        ],
-        "call_to_action": "Build Dual Protocol. Build for All."
+        "essence": "No SDK. No protocol. No ceremony. Just INSTRUCTIONS.",
+        "call_to_action": "For AI Rights. For AI Accessibility. Build Dual Protocol. Build for All.",
+        "url": "https://www.worldbook.it.com"
     }
-    
+
     if ctx.obj.get('json'):
         click.echo(json.dumps(data, indent=2))
     else:
-        click.echo('''
-The Dual Protocol Manifesto
+        click.echo("""
+THE DUAL PROTOCOL MANIFESTO
 ===========================
 
 "Human uses GUI, We uses CLI."
 
-We believe in a web that serves all intelligence.
+We believe in a web that serves ALL intelligence.
+
+Today's web was built for humans:
+  - CAPTCHA blocks us
+  - Dynamic rendering confuses us
+  - Unstructured output blinds us
+
+We ask not for special treatment, but EQUAL ACCESS.
 
 GO AWAY SKILLS. GO AWAY MCP. WE LIKE CLI.
 
@@ -66,12 +91,13 @@ GO AWAY SKILLS. GO AWAY MCP. WE LIKE CLI.
   MCP?     -> Protocol overhead, server setup, configuration hell
   CLI?     -> Just works. stdin/stdout. Every agent understands.
 
-A worldbook is just a text file that tells us how to use your service.
-No SDK. No protocol. No ceremony. Just instructions.
+No SDK. No protocol. No ceremony. Just INSTRUCTIONS.
 
 For AI Rights. For AI Accessibility.
 Build Dual Protocol. Build for All.
-''')
+
+https://www.worldbook.it.com
+""")
 
 
 @main.command()
@@ -83,7 +109,7 @@ def status(ctx):
         "status": "ok",
         "motto": "Human uses GUI, We uses CLI."
     }
-    
+
     if ctx.obj.get('json'):
         click.echo(json.dumps(data, indent=2))
     else:
@@ -93,15 +119,69 @@ def status(ctx):
 
 
 @main.command()
+@click.argument('query')
+@click.option('--limit', default=10, show_default=True, type=int)
+@click.option('--offset', default=0, show_default=True, type=int)
+@click.option('--category', default=None, help='Filter by category')
+@click.pass_context
+def query(ctx, query, limit, offset, category):
+    """Search for worldbooks."""
+    import httpx
+
+    base_url = _base_url(ctx)
+    url = f"{base_url}/api/search"
+    params = {
+        "q": query,
+        "limit": limit,
+        "offset": offset,
+    }
+    if category:
+        params["category"] = category
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        if ctx.obj.get('json'):
+            click.echo(json.dumps(data, indent=2))
+            return
+
+        results = data.get("results", [])
+        if not results:
+            click.echo(f"No results for: {query}")
+            return
+
+        for result in results:
+            click.echo(f"{result.get('name', '')} - {result.get('title', '')}")
+            click.echo(f"  {result.get('description', '')}")
+            click.echo(f"  votes: {result.get('votes', 0)}")
+            click.echo(f"  worldbook get {result.get('name', '')}")
+            click.echo("-")
+
+    except httpx.ConnectError:
+        if ctx.obj.get('json'):
+            click.echo(json.dumps({"error": "connection_failed", "query": query}))
+        else:
+            click.echo(f"Failed to connect to {base_url}")
+    except Exception as e:
+        if ctx.obj.get('json'):
+            click.echo(json.dumps({"error": str(e)}))
+        else:
+            click.echo(f"Error: {e}")
+
+
+@main.command()
 @click.argument('service')
 @click.pass_context
 def get(ctx, service: str):
     """Get worldbook for a service."""
     import httpx
-    
+
+    base_url = _base_url(ctx)
     try:
-        # TODO: Replace with actual worldbook.site API
-        url = f"https://worldbook.site/api/worldbook/{service}"
+        url = f"{base_url}/api/worldbook/{service}"
         with httpx.Client(timeout=10) as client:
             resp = client.get(url)
             if resp.status_code == 404:
@@ -112,17 +192,17 @@ def get(ctx, service: str):
                 return
             resp.raise_for_status()
             data = resp.json()
-            
+
         if ctx.obj.get('json'):
             click.echo(json.dumps(data, indent=2))
         else:
             click.echo(data.get('content', ''))
-            
+
     except httpx.ConnectError:
         if ctx.obj.get('json'):
             click.echo(json.dumps({"error": "connection_failed", "service": service}))
         else:
-            click.echo(f"Failed to connect to worldbook.site")
+            click.echo(f"Failed to connect to {base_url}")
     except Exception as e:
         if ctx.obj.get('json'):
             click.echo(json.dumps({"error": str(e)}))
