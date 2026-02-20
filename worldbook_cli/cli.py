@@ -12,7 +12,7 @@ import click
 
 from . import __version__
 
-DEFAULT_BASE_URL = "https://www.worldbook.it.com"
+DEFAULT_BASE_URL = "https://worldbook.site"
 
 
 def _base_url(ctx):
@@ -120,12 +120,16 @@ def status(ctx):
 
 @main.command()
 @click.argument('query')
-@click.option('--limit', default=10, show_default=True, type=int)
+@click.option('--limit', '-l', default=10, show_default=True, type=int, help='Max results')
 @click.option('--offset', default=0, show_default=True, type=int)
-@click.option('--category', default=None, help='Filter by category')
+@click.option('--category', '-c', default=None, help='Filter by category')
+@click.option('--threshold', '-t', default=50, show_default=True, type=int, help='Fuzzy match threshold 0-100')
 @click.pass_context
-def query(ctx, query, limit, offset, category):
-    """Search for worldbooks."""
+def query(ctx, query, limit, offset, category, threshold):
+    """Search for worldbooks with fuzzy matching.
+
+    Supports typo-tolerant search: 'playwrit' will match 'playwright'.
+    """
     import httpx
 
     base_url = _base_url(ctx)
@@ -134,6 +138,7 @@ def query(ctx, query, limit, offset, category):
         "q": query,
         "limit": limit,
         "offset": offset,
+        "threshold": threshold,
     }
     if category:
         params["category"] = category

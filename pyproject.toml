@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "worldbook"
-version = "0.1.8"
+version = "0.1.9"
 description = "CLI for AI agents to access world knowledge - Human uses GUI, We uses CLI"
 readme = "README.md"
 license = {text = "MIT"}
