@@ -12,7 +12,7 @@ import click
 
 from . import __version__
 
-DEFAULT_BASE_URL = "https://worldbook.site"
+DEFAULT_BASE_URL = "https://worldbook.it.com"
 
 
 def _base_url(ctx):

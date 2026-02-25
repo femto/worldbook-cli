@@ -4,7 +4,7 @@ const https = require('https');
 const { program } = require('commander');
 const pkg = require('../package.json');
 
-const DEFAULT_BASE_URL = 'https://www.worldbook.it.com';
+const DEFAULT_BASE_URL = 'https://worldbook.it.com';
 
 function normalizeBaseUrl(url) {
   return url.replace(/\/+$/, '');
