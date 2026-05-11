@@ -14,10 +14,52 @@ from . import __version__
 
 DEFAULT_BASE_URL = "https://worldbook.it.com"
 
+WEBMCP_AGENT_INSTRUCTIONS = """# Worldbook WebMCP
+
+Use Worldbook WebMCP when a task needs browser-page tools for a website.
+
+Discovery:
+- Run: worldbook --json webmcp get <current-page-url>
+- The command calls /api/webmcp/match?url=<current-page-url>.
+- If the response is null, there are no WebMCP tools for that URL.
+
+Execution contract:
+- Each tool has name, description, inputSchema, and handler.
+- handler is JavaScript function source.
+- Execute handler(params) in the matched browser page context.
+- The handler may read DOM state, call same-site fetch, navigate, or return a Promise.
+- Return the JSON-serializable result to the user.
+
+Useful commands:
+- worldbook webmcp list
+- worldbook --json webmcp get https://www.google.com/search?q=worldbook
+- worldbook webmcp instructions
+"""
+
 
 def _base_url(ctx):
     base_url = ctx.obj.get("base_url", DEFAULT_BASE_URL)
     return base_url.rstrip("/")
+
+
+def _echo_json(data):
+    click.echo(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _echo_error(ctx, payload, human_message):
+    if ctx.obj.get('json'):
+        _echo_json(payload)
+    else:
+        click.echo(human_message)
+
+
+def _request_json(ctx, path, params=None):
+    import httpx
+
+    base_url = _base_url(ctx)
+    with httpx.Client(timeout=10) as client:
+        resp = client.get(f"{base_url}{path}", params=params)
+    return base_url, resp
 
 
 @click.group()
@@ -64,7 +106,7 @@ def manifesto(ctx):
         },
         "essence": "No SDK. No protocol. No ceremony. Just INSTRUCTIONS.",
         "call_to_action": "For AI Rights. For AI Accessibility. Build Dual Protocol. Build for All.",
-        "url": "https://www.worldbook.it.com"
+        "url": "https://worldbook.it.com"
     }
 
     if ctx.obj.get('json'):
@@ -96,7 +138,7 @@ No SDK. No protocol. No ceremony. Just INSTRUCTIONS.
 For AI Rights. For AI Accessibility.
 Build Dual Protocol. Build for All.
 
-https://www.worldbook.it.com
+https://worldbook.it.com
 """)
 
 
@@ -213,6 +255,104 @@ def get(ctx, service: str):
             click.echo(json.dumps({"error": str(e)}))
         else:
             click.echo(f"Error: {e}")
+
+
+@main.group()
+def webmcp():
+    """Discover WebMCP browser tools for third-party agents."""
+
+
+@webmcp.command("get")
+@click.argument('url')
+@click.pass_context
+def webmcp_get(ctx, url: str):
+    """Get WebMCP tools for a page URL."""
+    import httpx
+
+    base_url = _base_url(ctx)
+    try:
+        _, resp = _request_json(ctx, "/api/webmcp/match", {"url": url})
+        resp.raise_for_status()
+        data = resp.json()
+
+        if ctx.obj.get('json'):
+            _echo_json(data)
+            return
+
+        if not data:
+            click.echo(f"No WebMCP tools for: {url}")
+            return
+
+        click.echo(f"Site: {data.get('site_name', '')}")
+        click.echo(f"Pattern: {data.get('url_pattern', '')}")
+        tools = data.get("tools", [])
+        click.echo(f"Tools: {len(tools)}")
+        for tool in tools:
+            click.echo(f"- {tool.get('name', '')}: {tool.get('description', '')}")
+        click.echo("")
+        click.echo("For agent use: worldbook --json webmcp get <url>")
+        click.echo("Execute each returned handler(params) in the matched browser page context.")
+
+    except httpx.ConnectError:
+        _echo_error(
+            ctx,
+            {"error": "connection_failed", "url": url},
+            f"Failed to connect to {base_url}",
+        )
+    except Exception as e:
+        _echo_error(ctx, {"error": str(e), "url": url}, f"Error: {e}")
+
+
+@webmcp.command("list")
+@click.pass_context
+def webmcp_list(ctx):
+    """List configured WebMCP sites."""
+    import httpx
+
+    base_url = _base_url(ctx)
+    try:
+        _, resp = _request_json(ctx, "/api/webmcp/sites")
+        resp.raise_for_status()
+        data = resp.json()
+
+        if ctx.obj.get('json'):
+            _echo_json(data)
+            return
+
+        for site in data:
+            click.echo(f"{site.get('site_name', '')} - {site.get('tool_count', 0)} tools")
+            click.echo(f"  pattern: {site.get('url_pattern', '')}")
+            click.echo(f"  tools: {', '.join(site.get('tools', []))}")
+
+    except httpx.ConnectError:
+        _echo_error(ctx, {"error": "connection_failed"}, f"Failed to connect to {base_url}")
+    except Exception as e:
+        _echo_error(ctx, {"error": str(e)}, f"Error: {e}")
+
+
+@webmcp.command("instructions")
+@click.pass_context
+def webmcp_instructions(ctx):
+    """Print instructions for configuring third-party agents."""
+    if ctx.obj.get('json'):
+        _echo_json({
+            "name": "worldbook-webmcp",
+            "description": "Discover browser-page tools from Worldbook WebMCP and execute returned handlers in a page context.",
+            "commands": [
+                "worldbook --json webmcp get <current-page-url>",
+                "worldbook webmcp list",
+                "worldbook webmcp instructions",
+            ],
+            "endpoint": "/api/webmcp/match?url=<current-page-url>",
+            "execution_contract": {
+                "handler": "JavaScript function source",
+                "call": "handler(params)",
+                "environment": "matched browser page context",
+            },
+        })
+        return
+
+    click.echo(WEBMCP_AGENT_INSTRUCTIONS)
 
 
 if __name__ == "__main__":

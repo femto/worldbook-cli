@@ -1,10 +1,32 @@
 #!/usr/bin/env node
 
+const http = require('http');
 const https = require('https');
 const { program } = require('commander');
 const pkg = require('../package.json');
 
 const DEFAULT_BASE_URL = 'https://worldbook.it.com';
+const WEBMCP_AGENT_INSTRUCTIONS = `# Worldbook WebMCP
+
+Use Worldbook WebMCP when a task needs browser-page tools for a website.
+
+Discovery:
+- Run: worldbook --json webmcp get <current-page-url>
+- The command calls /api/webmcp/match?url=<current-page-url>.
+- If the response is null, there are no WebMCP tools for that URL.
+
+Execution contract:
+- Each tool has name, description, inputSchema, and handler.
+- handler is JavaScript function source.
+- Execute handler(params) in the matched browser page context.
+- The handler may read DOM state, call same-site fetch, navigate, or return a Promise.
+- Return the JSON-serializable result to the user.
+
+Useful commands:
+- worldbook webmcp list
+- worldbook --json webmcp get https://www.google.com/search?q=worldbook
+- worldbook webmcp instructions
+`;
 
 function normalizeBaseUrl(url) {
   return url.replace(/\/+$/, '');
@@ -33,7 +55,8 @@ function isConnectionError(error) {
 
 function request(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, (res) => {
+    const transport = url.startsWith('http://') ? http : https;
+    const req = transport.get(url, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => {
@@ -111,7 +134,7 @@ program
       },
       essence: 'No SDK. No protocol. No ceremony. Just INSTRUCTIONS.',
       call_to_action: 'For AI Rights. For AI Accessibility. Build Dual Protocol. Build for All.',
-      url: 'https://www.worldbook.it.com',
+      url: 'https://worldbook.it.com',
     };
 
     if (json) {
@@ -143,7 +166,7 @@ No SDK. No protocol. No ceremony. Just INSTRUCTIONS.
 For AI Rights. For AI Accessibility.
 Build Dual Protocol. Build for All.
 
-https://www.worldbook.it.com
+https://worldbook.it.com
 `);
     }
   });
@@ -278,6 +301,146 @@ program
         console.log(`Error: ${err.message}`);
       }
     }
+  });
+
+const webmcp = program
+  .command('webmcp')
+  .description('Discover WebMCP browser tools for third-party agents');
+
+webmcp
+  .command('get')
+  .description('Get WebMCP tools for a page URL')
+  .argument('<url>')
+  .option('--json', 'Output as JSON')
+  .option('--base-url <url>', 'Worldbook API base URL')
+  .action(async (pageUrl, options) => {
+    const { json, baseUrl } = getOptions(options);
+    const url = buildUrl(baseUrl, '/api/webmcp/match', { url: pageUrl });
+
+    try {
+      const { statusCode, data } = await requestJson(url);
+      if (statusCode < 200 || statusCode >= 300) {
+        const err = new Error(`HTTP ${statusCode}`);
+        err.statusCode = statusCode;
+        throw err;
+      }
+
+      if (json) {
+        console.log(JSON.stringify(data, null, 2));
+        return;
+      }
+
+      if (!data) {
+        console.log(`No WebMCP tools for: ${pageUrl}`);
+        return;
+      }
+
+      console.log(`Site: ${data.site_name || ''}`);
+      console.log(`Pattern: ${data.url_pattern || ''}`);
+      const tools = data.tools || [];
+      console.log(`Tools: ${tools.length}`);
+      tools.forEach((tool) => {
+        console.log(`- ${tool.name || ''}: ${tool.description || ''}`);
+      });
+      console.log('');
+      console.log('For agent use: worldbook --json webmcp get <url>');
+      console.log('Execute each returned handler(params) in the matched browser page context.');
+    } catch (err) {
+      if (json) {
+        if (isConnectionError(err)) {
+          console.log(JSON.stringify({ error: 'connection_failed', url: pageUrl }, null, 2));
+        } else {
+          console.log(JSON.stringify({ error: err.message, url: pageUrl }, null, 2));
+        }
+        return;
+      }
+
+      if (isConnectionError(err)) {
+        console.log(`Failed to connect to ${baseUrl}`);
+      } else {
+        console.log(`Error: ${err.message}`);
+      }
+    }
+  });
+
+webmcp
+  .command('list')
+  .description('List configured WebMCP sites')
+  .option('--json', 'Output as JSON')
+  .option('--base-url <url>', 'Worldbook API base URL')
+  .action(async (options) => {
+    const { json, baseUrl } = getOptions(options);
+    const url = buildUrl(baseUrl, '/api/webmcp/sites');
+
+    try {
+      const { statusCode, data } = await requestJson(url);
+      if (statusCode < 200 || statusCode >= 300) {
+        const err = new Error(`HTTP ${statusCode}`);
+        err.statusCode = statusCode;
+        throw err;
+      }
+
+      if (json) {
+        console.log(JSON.stringify(data, null, 2));
+        return;
+      }
+
+      data.forEach((site) => {
+        console.log(`${site.site_name || ''} - ${site.tool_count || 0} tools`);
+        console.log(`  pattern: ${site.url_pattern || ''}`);
+        console.log(`  tools: ${(site.tools || []).join(', ')}`);
+      });
+    } catch (err) {
+      if (json) {
+        if (isConnectionError(err)) {
+          console.log(JSON.stringify({ error: 'connection_failed' }, null, 2));
+        } else {
+          console.log(JSON.stringify({ error: err.message }, null, 2));
+        }
+        return;
+      }
+
+      if (isConnectionError(err)) {
+        console.log(`Failed to connect to ${baseUrl}`);
+      } else {
+        console.log(`Error: ${err.message}`);
+      }
+    }
+  });
+
+webmcp
+  .command('instructions')
+  .description('Print instructions for configuring third-party agents')
+  .option('--json', 'Output as JSON')
+  .action((options) => {
+    const { json } = getOptions(options);
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            name: 'worldbook-webmcp',
+            description:
+              'Discover browser-page tools from Worldbook WebMCP and execute returned handlers in a page context.',
+            commands: [
+              'worldbook --json webmcp get <current-page-url>',
+              'worldbook webmcp list',
+              'worldbook webmcp instructions',
+            ],
+            endpoint: '/api/webmcp/match?url=<current-page-url>',
+            execution_contract: {
+              handler: 'JavaScript function source',
+              call: 'handler(params)',
+              environment: 'matched browser page context',
+            },
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
+    console.log(WEBMCP_AGENT_INSTRUCTIONS);
   });
 
 program.parse();
